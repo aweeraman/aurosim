@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.gnuromancer</groupId>
-    <artifactId>aurosim-app</artifactId>
+    <artifactId>autonomous-rover-simulator</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
