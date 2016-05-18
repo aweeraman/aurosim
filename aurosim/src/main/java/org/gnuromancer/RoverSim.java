@@ -13,6 +13,7 @@ public class RoverSim {
     public static class Rover extends Agent {
 
         private RangeSensorBelt sensorBelt;
+        private double rotationalVelocityFactor = Math.PI / 32;
 
         public Rover(Vector3d position, String name) {
             super(position, name);
@@ -24,12 +25,24 @@ public class RoverSim {
         }
 
         public void performBehavior() {
-            setTranslationalVelocity(1.0);
-            double d = sensorBelt.getMeasurement(0);
-            if (d < 0.05) {
-                setRotationalVelocity(Math.PI / 2 * (0.5 - Math.random()));
+            if (sensorBelt.oneHasHit() || collisionDetected()) {
+                double maxRotationalVelocity = Math.PI / 0.5;
+                double distance = sensorBelt.getMeasurement(0);
+                if (distance < 2 || Double.isInfinite(distance)) {
+
+                    // Randomly change direction to either left or right when collision is detected
+                    if ((int) (Math.random() * 101) % 2 == 0) {
+                        setRotationalVelocity(maxRotationalVelocity - (rotationalVelocityFactor * Math.random()));
+                        setTranslationalVelocity(0);
+                    } else {
+                        setRotationalVelocity(-maxRotationalVelocity - (rotationalVelocityFactor * Math.random()));
+                    }
+                    setTranslationalVelocity(0);
+                }
+            } else {
+                setRotationalVelocity(0);
+                setTranslationalVelocity(1.0);
             }
-            System.out.println(d);
         }
     }
 
