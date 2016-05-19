@@ -25,6 +25,8 @@
 package simbad.sim;
 
 
+import org.gnuromancer.Rover;
+
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -33,7 +35,7 @@ import java.util.TimerTask;
 import javax.media.j3d.VirtualUniverse;
 import javax.swing.JComponent;
 import javax.swing.JInternalFrame;
-
+import javax.vecmath.Vector3d;
 
 
 /**
@@ -83,6 +85,9 @@ public class Simulator {
     
    /** Count simulation steps. */
     private long counter;
+
+    /** Pass in the number of rovers to initialize */
+    private int roverCount;
     
     
     ///////////////////////////////////////////////////////
@@ -108,6 +113,7 @@ public class Simulator {
         timer = null;
         setFramesPerSecond(20);
         setVirtualTimeFactor(1);
+        setRoverCount(3);
         fps = new FrameMeter();
         agents = new ArrayList();
         objects = new ArrayList();
@@ -129,6 +135,10 @@ public class Simulator {
     }
     /** Add all agents and objects. Only called once.*/
     private void addMobileAndStaticObjects(EnvironmentDescription ed) {
+        for (int cnt = 0; cnt < roverCount; cnt++) {
+            ed.add(new Rover(new Vector3d(0, 0, 0), "rover"));
+        }
+
         // add all agents requested by the user
         for (int i = 0 ; i < ed.objects.size();i++){
             Object o = ed.objects.get(i);
@@ -264,7 +274,7 @@ public class Simulator {
             SimpleAgent agent = ((SimpleAgent) agents.get(i));
                 agent.initPreBehavior();
                 agent.initBehavior();
-            
+
         }
         unlock();// end of critical section
     }
@@ -420,5 +430,10 @@ public class Simulator {
             System.out.println("[SIM] Stopping Background mode");
             world.startRendering();
         }
+    }
+
+    public void setRoverCount(int roverCount) {
+        System.out.println("[SIM] roverCount = " + roverCount);
+        this.roverCount = roverCount;
     }
  }

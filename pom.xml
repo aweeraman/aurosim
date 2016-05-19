@@ -11,7 +11,6 @@
 
     <modules>
         <module>simbad</module>
-        <module>aurosim</module>
     </modules>
 
 </project>

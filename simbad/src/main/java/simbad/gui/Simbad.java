@@ -90,9 +90,6 @@ public class Simbad extends JFrame implements ActionListener {
     private void createGUI() {
         desktop.setFocusable(true);
         getContentPane().add(desktop);
-        menubar = new JMenuBar();
-        menubar.add(DemoManager.createMenu(this));
-        setJMenuBar(menubar);
     }
     
     /** Starts (or Restarts after releaseRessources) the world and simulator.*/
