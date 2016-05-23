@@ -1,6 +1,6 @@
-# Autonomous Rover Simulator
+# Autonomous Rover
 
-This is a simple simulator for an autonomous rover based on the Simbad virtual robot simulator.
+This project hosts an autonomous rover simulator and its corresponding implementation on Arduino.
 
 ## Installation
 
@@ -8,6 +8,7 @@ Pre-requisites:
 
 * A JVM, such as openjdk
 * Java3D libraries
+* Arduino and rover hardware (details of hardware to follow)
 
 On Debian/Ubuntu Linux, as root:
 
