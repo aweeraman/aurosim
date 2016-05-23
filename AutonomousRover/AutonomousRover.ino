@@ -6,7 +6,9 @@ AF_DCMotor front_right(2);
 
 const int TRIG = 12;
 const int ECHO = 7;
+
 const int ROVER_SPEED = 75;
+const int ROVER_TURN_SPEED = 100;
 
 void setup() {
   Serial.begin(9600);
@@ -78,7 +80,7 @@ void stop() {
 void turnRight() {
   Serial.println("Turning right");
 
-  front_left.setSpeed(ROVER_SPEED);
+  front_left.setSpeed(ROVER_TURN_SPEED);
   front_left.run(FORWARD);
 
   front_right.setSpeed(0);
@@ -91,7 +93,7 @@ void turnLeft() {
   front_left.setSpeed(0);
   front_left.run(FORWARD);
 
-  front_right.setSpeed(ROVER_SPEED);
+  front_right.setSpeed(ROVER_TURN_SPEED);
   front_right.run(FORWARD);
 }
 
