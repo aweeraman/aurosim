@@ -93,19 +93,6 @@ public class SimulatorControlGUI extends JPanel implements ActionListener {
         createRadioButton(panel2, bgroup, "20.0", "tf20.0",false);
 
         add(panel2);
-
-        JPanel panel3 = new JPanel();
-        panel3.setLayout(new BoxLayout(panel3, BoxLayout.X_AXIS));
-        createLabel(panel3, "Rovers");
-        ButtonGroup roverCount = new ButtonGroup();
-        createRadioButton(panel3, roverCount, "1", "r1",false);
-        createRadioButton(panel3, roverCount, "2", "r2",false);
-        createRadioButton(panel3, roverCount, "3", "r3",true);
-        createRadioButton(panel3, roverCount, "5", "r5",false);
-        createRadioButton(panel3, roverCount, "8", "r8",false);
-        createRadioButton(panel3, roverCount, "13", "r13",false);
-
-        add(panel3);
    }
 
     /** helper function */
@@ -164,18 +151,6 @@ public class SimulatorControlGUI extends JPanel implements ActionListener {
             simulator.setVirtualTimeFactor(50.0f);
         } else if (action.equals("step1")) {
             simulator.performSimulationStep();
-        } else if (action.equals("r1")) {
-            simulator.setRoverCount(1);
-        } else if (action.equals("r2")) {
-            simulator.setRoverCount(2);
-        } else if (action.equals("r3")) {
-            simulator.setRoverCount(3);
-        } else if (action.equals("r5")) {
-            simulator.setRoverCount(5);
-        } else if (action.equals("r8")) {
-            simulator.setRoverCount(8);
-        } else if (action.equals("r13")) {
-            simulator.setRoverCount(13);
         }
     }
  
