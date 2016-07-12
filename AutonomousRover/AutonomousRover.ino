@@ -1,14 +1,14 @@
-
+#include <PID_v1.h>
 #include <AFMotor.h>
 #include <TimerOne.h>
 
 AF_DCMotor front_left(1);
 AF_DCMotor front_right(2);
 
-const int TRIG = 12;
+const int TRIG = 10;
 const int ECHO = 7;
 
-const int ROVER_SPEED = 120;
+const int ROVER_SPEED = 100;
 const int ROVER_TURN_SPEED = 100;
 
 const int ENCODER_PIN_RIGHT = 9;
@@ -16,6 +16,12 @@ const int ENCODER_PIN_LEFT = A2;
 
 volatile int right_counter = 0;
 volatile int left_counter = 0;
+
+double right_motor_setpoint, right_motor_input, right_motor_output;
+PID right_motor_PID(&right_motor_input, &right_motor_output, &right_motor_setpoint, 2, 5, 1, DIRECT);
+
+double left_motor_setpoint, left_motor_input, left_motor_output;
+PID left_motor_PID(&left_motor_input, &left_motor_output, &left_motor_setpoint, 2, 5, 1, DIRECT);
 
 void setup() {
   Serial.begin(9600);
@@ -34,10 +40,27 @@ void setup() {
 
   Timer1.initialize(1000000); // set timer for 1sec
   Timer1.attachInterrupt( timerIsr ); // enable the timer
+
+  right_motor_input = analogRead(0);
+  right_motor_setpoint = 25;
+  right_motor_PID.SetMode(AUTOMATIC);
+
+  left_motor_input = analogRead(1);
+  left_motor_setpoint = 25;
+  left_motor_PID.SetMode(AUTOMATIC);
 }
 
 void loop() {
+
   move(ping());
+
+  right_motor_input = analogRead(0);
+  right_motor_PID.Compute();
+  analogWrite(3, right_motor_output);
+
+  left_motor_input = analogRead(1);
+  left_motor_PID.Compute();
+  analogWrite(11, left_motor_output);
 }
 
 void timerIsr()
@@ -65,8 +88,8 @@ int ping() {
   long duration = pulseIn(ECHO, HIGH);
   long cm = duration / 29 / 2;
   
-  //Serial.print(cm);
-  //Serial.println(" cm");
+  Serial.print(cm);
+  Serial.println(" cm");
   
   return cm;
 }
