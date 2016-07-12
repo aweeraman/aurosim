@@ -6,7 +6,7 @@ AF_DCMotor front_left(1);
 AF_DCMotor front_right(2);
 
 const int TRIG = 10;
-const int ECHO = 7;
+const int ECHO = 2;
 
 const int ROVER_SPEED = 100;
 const int ROVER_TURN_SPEED = 100;
@@ -16,12 +16,19 @@ const int ENCODER_PIN_LEFT = A2;
 
 volatile int right_counter = 0;
 volatile int left_counter = 0;
+volatile int distance = 0;
 
 double right_motor_setpoint, right_motor_input, right_motor_output;
 PID right_motor_PID(&right_motor_input, &right_motor_output, &right_motor_setpoint, 2, 5, 1, DIRECT);
 
 double left_motor_setpoint, left_motor_input, left_motor_output;
 PID left_motor_PID(&left_motor_input, &left_motor_output, &left_motor_setpoint, 2, 5, 1, DIRECT);
+
+unsigned long pingTimer = 0L;
+
+volatile long echo_end = 0L;
+volatile long echo_start = 0L;
+volatile long echo_duration = 0L;
 
 void setup() {
   Serial.begin(9600);
@@ -48,11 +55,18 @@ void setup() {
   left_motor_input = analogRead(1);
   left_motor_setpoint = 25;
   left_motor_PID.SetMode(AUTOMATIC);
+
+  attachInterrupt(digitalPinToInterrupt(ECHO), readEcho, CHANGE);
 }
 
 void loop() {
 
-  move(ping());
+  if (pingTimer == 0L || (millis() - pingTimer >= 500L)) {
+    ping();
+    pingTimer = millis();
+  }
+
+  move(1);
 
   right_motor_input = analogRead(0);
   right_motor_PID.Compute();
@@ -61,6 +75,25 @@ void loop() {
   left_motor_input = analogRead(1);
   left_motor_PID.Compute();
   analogWrite(11, left_motor_output);
+
+}
+
+void readEcho()
+{
+  switch (digitalRead(ECHO))
+  {
+    case HIGH:
+      echo_end = 0;
+      echo_start = micros();
+      break;
+
+    case LOW:
+      echo_end = micros();
+      echo_duration = echo_end - echo_start;
+      break;
+  }
+
+  distance = echo_duration / 29 / 2;
 }
 
 void timerIsr()
@@ -70,28 +103,21 @@ void timerIsr()
   int right_rotation = (right_counter / 2 / 20);
   int left_rotation = (left_counter / 2 / 20);
   Serial.print(right_counter, DEC);  
-  Serial.print(", LEFT="); 
+  Serial.print(", Left=");
   Serial.println(left_counter, DEC);
+  Serial.print(distance);
+  Serial.println(" cm");
   right_counter=0;  //  reset counter to zero
   left_counter=0;
   Timer1.attachInterrupt( timerIsr );  //enable the timer
 }
 
-int ping() {
+void ping() {
   digitalWrite(TRIG, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG, LOW);
-
-  pinMode(ECHO, INPUT);
-  long duration = pulseIn(ECHO, HIGH);
-  long cm = duration / 29 / 2;
-  
-  Serial.print(cm);
-  Serial.println(" cm");
-  
-  return cm;
 }
 
 void move(long distanceToObstacle) {
@@ -112,7 +138,7 @@ void setRoverSpeed(int speed) {
   front_left.setSpeed(speed);
   front_right.setSpeed(speed);
   
-  //delay(5);
+  delay(5);
 }
 
 void moveForward() {
