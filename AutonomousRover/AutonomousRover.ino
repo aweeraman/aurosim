@@ -8,7 +8,7 @@ AF_DCMotor front_right(2);
 const int TRIG = 12;
 const int ECHO = 7;
 
-const int ROVER_SPEED = 100;
+const int ROVER_SPEED = 120;
 const int ROVER_TURN_SPEED = 100;
 
 const int ENCODER_PIN_RIGHT = 9;
@@ -46,9 +46,9 @@ void timerIsr()
   Serial.print("Motor Speed: Right="); 
   int right_rotation = (right_counter / 2 / 20);
   int left_rotation = (left_counter / 2 / 20);
-  Serial.print(right_rotation, DEC);  
+  Serial.print(right_counter, DEC);  
   Serial.print(", LEFT="); 
-  Serial.println(left_rotation, DEC);
+  Serial.println(left_counter, DEC);
   right_counter=0;  //  reset counter to zero
   left_counter=0;
   Timer1.attachInterrupt( timerIsr );  //enable the timer
