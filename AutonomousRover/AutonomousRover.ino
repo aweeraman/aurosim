@@ -1,83 +1,187 @@
-#include <PID_v1.h>
 #include <AFMotor.h>
-#include <TimerOne.h>
+#include <PID_v1.h>
 
+// Initialize the two DC wheel motors
 AF_DCMotor front_left(1);
 AF_DCMotor front_right(2);
 
-const int TRIG = 10;
-const int ECHO = 2;
+// Set to true to print debug messages to the serial line
+const boolean DEBUG = true;
 
-const int ROVER_SPEED = 100;
-const int ROVER_TURN_SPEED = 100;
-
+// Pins for the wheel encoders
 const int ENCODER_PIN_RIGHT = 9;
 const int ENCODER_PIN_LEFT = A2;
 
-volatile int right_counter = 0;
-volatile int left_counter = 0;
-volatile int distance = 0;
+// Pins for setting the direction on the two motors
+const int DIRECTION_PIN_RIGHT = 12;
+const int DIRECTION_PIN_LEFT = 13;
 
-double right_motor_setpoint, right_motor_input, right_motor_output;
-PID right_motor_PID(&right_motor_input, &right_motor_output, &right_motor_setpoint, 2, 5, 1, DIRECT);
+// PWM pins for speed control on the two motors
+const int SPEED_PIN_RIGHT = 3;
+const int SPEED_PIN_LEFT = 11;
 
-double left_motor_setpoint, left_motor_input, left_motor_output;
-PID left_motor_PID(&left_motor_input, &left_motor_output, &left_motor_setpoint, 2, 5, 1, DIRECT);
+// Pins for the ultrasonic sensor
+const int TRIG = 10;
+const int ECHO = 2;
 
+// Constants for motor speed during different behaviors
+const int SPEED_CRUISING = 30;
+const int SPEED_HALT = 0;
+const int SPEED_TURN = 20;
+
+// Constants for timer intervals
+const long TIMER_PING = 500L;
+const long TIMER_ENCODER = 50L;
+
+// Counters for the wheel encoders
+volatile int right_counter = 0, last_right_counter = 0;
+volatile int left_counter = 0, last_left_counter = 0;
+
+// Timer variables
+unsigned long encoderTimer = 0L;
 unsigned long pingTimer = 0L;
+unsigned long debugTimer = 0L;
+unsigned long stopTimer = 0L;
 
+// Used by the ultrasonic echo interrupt service routines
 volatile long echo_end = 0L;
 volatile long echo_start = 0L;
 volatile long echo_duration = 0L;
+volatile long echo_distance = 0;
+
+// Definition of different behaviors
+const int EXPLORE = 1;
+const int COLLISION_AVOIDANCE = 2;
+const int STOP = 3;
+
+// Set the default behavior to explore mode
+int behavior = EXPLORE;
+
+// PID control for the right motor
+double right_motor_setpoint, right_motor_input, right_motor_output;
+PID right_motor_PID(&right_motor_input, &right_motor_output, &right_motor_setpoint, 2, 5, 1, DIRECT);
+
+// PID control for the left motor
+double left_motor_setpoint, left_motor_input, left_motor_output;
+PID left_motor_PID(&left_motor_input, &left_motor_output, &left_motor_setpoint, 2, 5, 1, DIRECT);
 
 void setup() {
   Serial.begin(9600);
 
   pinMode (TRIG, OUTPUT);
   pinMode (ECHO, INPUT);
-  
+
   front_left.setSpeed(1);
   front_left.run(RELEASE);
+  digitalWrite(DIRECTION_PIN_LEFT, LOW);
 
   front_right.setSpeed(1);
   front_right.run(RELEASE);
+  digitalWrite(DIRECTION_PIN_RIGHT, LOW);
 
+  // Enable Pin Change Interrupts for the encoder pins
   pciSetup(ENCODER_PIN_RIGHT);
   pciSetup(ENCODER_PIN_LEFT);
 
-  Timer1.initialize(1000000); // set timer for 1sec
-  Timer1.attachInterrupt( timerIsr ); // enable the timer
-
-  right_motor_input = analogRead(0);
-  right_motor_setpoint = 25;
+  // Setup the PID control parameters for the right motor
+  right_motor_setpoint = SPEED_CRUISING;
   right_motor_PID.SetMode(AUTOMATIC);
+  right_motor_PID.SetOutputLimits(0, 255);
 
-  left_motor_input = analogRead(1);
-  left_motor_setpoint = 25;
+  // Setup the PID control parameters for the left motor
+  left_motor_setpoint = SPEED_CRUISING;
   left_motor_PID.SetMode(AUTOMATIC);
+  left_motor_PID.SetOutputLimits(0, 255);
 
+  // Setup the external interrupt to capture the ultrasonic echo
   attachInterrupt(digitalPinToInterrupt(ECHO), readEcho, CHANGE);
 }
 
 void loop() {
 
-  if (pingTimer == 0L || (millis() - pingTimer >= 500L)) {
-    ping();
-    pingTimer = millis();
+  // Behavior state machine
+  if (behavior == EXPLORE || behavior == COLLISION_AVOIDANCE) {
+
+    // Set the motors to move forward
+    front_left.run(FORWARD);
+    front_right.run(FORWARD);
+
+    // Send the ultrasonic ping signal at a specified interval
+    if (pingTimer == 0L || (millis() - pingTimer >= TIMER_PING)) {
+      sendPing();
+      pingTimer = millis();
+    }
+
+    // Capture the encoder value at a defined interval
+    if (encoderTimer == 0L || (millis() - encoderTimer >= TIMER_ENCODER)) {
+      last_right_counter = right_counter;
+      last_left_counter = left_counter;
+      right_counter = 0;
+      left_counter = 0;
+      encoderTimer = millis();
+    }
+
+    // Use the PID control to set the speed on the right and left motors
+    // to match the setpoint
+    
+    right_motor_input = last_right_counter;
+    while (!right_motor_PID.Compute());
+    digitalWrite(SPEED_PIN_RIGHT, right_motor_output);
+  
+    left_motor_input = last_left_counter;
+    while (!left_motor_PID.Compute());
+    digitalWrite(SPEED_PIN_LEFT, left_motor_output);
+
+    // Collision avoidance
+    if (echo_distance < 30) {
+      right_motor_setpoint = SPEED_TURN;
+      left_motor_setpoint = SPEED_HALT;
+    } else {
+      right_motor_setpoint = SPEED_CRUISING;
+      left_motor_setpoint = SPEED_CRUISING;
+    }
+    
+    if (DEBUG) {
+      Serial.print("Echo distance: ");
+      Serial.println(echo_distance);
+  
+      Serial.print("Encoder Right: ");
+      Serial.print(last_right_counter);
+      Serial.print(" Left: ");
+      Serial.println(last_left_counter);
+  
+      Serial.print("Motor Right Input: ");
+      Serial.print(right_motor_input);
+      Serial.print(" Output: ");
+      Serial.println(right_motor_output);
+  
+      Serial.print("Motor Left Input: ");
+      Serial.print(left_motor_input);
+      Serial.print(" Output: ");
+      Serial.println(left_motor_output);
+    }
+  } else if (behavior == STOP) {
+    digitalWrite(SPEED_PIN_RIGHT, LOW);
+    digitalWrite(SPEED_PIN_LEFT, LOW);
+    
+    if (millis() - stopTimer >= 1000L) {
+      behavior = EXPLORE;
+    }
   }
-
-  move(1);
-
-  right_motor_input = analogRead(0);
-  right_motor_PID.Compute();
-  analogWrite(3, right_motor_output);
-
-  left_motor_input = analogRead(1);
-  left_motor_PID.Compute();
-  analogWrite(11, left_motor_output);
-
 }
 
+// Create the ping waveform for the ultrasonic signal
+void sendPing() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+}
+
+// Read the echo from the ping signal and capture the duration
+// of the response and convert it to a distance value from a
+// potential point of collision
 void readEcho()
 {
   switch (digitalRead(ECHO))
@@ -93,81 +197,10 @@ void readEcho()
       break;
   }
 
-  distance = echo_duration / 29 / 2;
+  echo_distance = echo_duration / 29 / 2;
 }
 
-void timerIsr()
-{
-  Timer1.detachInterrupt();  //stop the timer
-  Serial.print("Motor Speed: Right="); 
-  int right_rotation = (right_counter / 2 / 20);
-  int left_rotation = (left_counter / 2 / 20);
-  Serial.print(right_counter, DEC);  
-  Serial.print(", Left=");
-  Serial.println(left_counter, DEC);
-  Serial.print(distance);
-  Serial.println(" cm");
-  right_counter=0;  //  reset counter to zero
-  left_counter=0;
-  Timer1.attachInterrupt( timerIsr );  //enable the timer
-}
-
-void ping() {
-  digitalWrite(TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG, LOW);
-}
-
-void move(long distanceToObstacle) {
-  long rand = random(100);
-  
-//  if (distanceToObstacle < 50) {
-//    turnRight();
-//  } else {
-//    moveForward();
-//  }
-
-// Move in a straight line for the moment
-  moveForward();
-}
-
-void setRoverSpeed(int speed) {
-
-  front_left.setSpeed(speed);
-  front_right.setSpeed(speed);
-  
-  delay(5);
-}
-
-void moveForward() {
-  setRoverSpeed(ROVER_SPEED);
-
-  front_left.run(FORWARD);
-  front_right.run(FORWARD);
-}
-
-void stop() {
-  setRoverSpeed(0);
-}
-
-void turnRight() {
-  front_left.setSpeed(ROVER_TURN_SPEED);
-  front_left.run(FORWARD);
-
-  front_right.setSpeed(0);
-  front_right.run(FORWARD);
-}
-
-void turnLeft() {
-  front_left.setSpeed(0);
-  front_left.run(FORWARD);
-
-  front_right.setSpeed(ROVER_TURN_SPEED);
-  front_right.run(FORWARD);
-}
-
+// Enable the Pin Change Interrupt for the specified pin
 void pciSetup(byte pin)
 {
     *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
@@ -175,12 +208,14 @@ void pciSetup(byte pin)
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-ISR (PCINT0_vect) // handle pin change interrupt for D0 to D7 here
+// Interrupt service routine for the right wheel encoder
+ISR (PCINT0_vect)
 {
     right_counter++;
-}  
-
-ISR (PCINT1_vect) // handle pin change interrupt for D8 to D13 here
+}
+ 
+// Interrupt service routine for the left wheel encoder
+ISR (PCINT1_vect)
 {    
     left_counter++;
 }
