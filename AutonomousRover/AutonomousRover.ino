@@ -1,5 +1,6 @@
 #include <AFMotor.h>
 #include <PID_v1.h>
+#include <TimerOne.h>
 
 // Initialize the two DC wheel motors
 AF_DCMotor front_left(1);
@@ -39,7 +40,6 @@ volatile int left_counter = 0, last_left_counter = 0;
 
 // Timer variables
 unsigned long encoderTimer = 0L;
-unsigned long pingTimer = 0L;
 unsigned long debugTimer = 0L;
 unsigned long stopTimer = 0L;
 
@@ -86,12 +86,15 @@ void setup() {
   // Setup the PID control parameters for the right motor
   right_motor_setpoint = SPEED_CRUISING;
   right_motor_PID.SetMode(AUTOMATIC);
-  right_motor_PID.SetOutputLimits(0, 255);
+  right_motor_PID.SetOutputLimits(0, 1024);
 
   // Setup the PID control parameters for the left motor
   left_motor_setpoint = SPEED_CRUISING;
   left_motor_PID.SetMode(AUTOMATIC);
-  left_motor_PID.SetOutputLimits(0, 255);
+  left_motor_PID.SetOutputLimits(0, 1024);
+
+  Timer1.initialize(50000);
+  Timer1.attachInterrupt(sendPing);
 
   // Setup the external interrupt to capture the ultrasonic echo
   attachInterrupt(digitalPinToInterrupt(ECHO), readEcho, CHANGE);
@@ -105,12 +108,6 @@ void loop() {
     // Set the motors to move forward
     front_left.run(FORWARD);
     front_right.run(FORWARD);
-
-    // Send the ultrasonic ping signal at a specified interval
-    if (pingTimer == 0L || (millis() - pingTimer >= TIMER_PING)) {
-      sendPing();
-      pingTimer = millis();
-    }
 
     // Capture the encoder value at a defined interval
     if (encoderTimer == 0L || (millis() - encoderTimer >= TIMER_ENCODER)) {
