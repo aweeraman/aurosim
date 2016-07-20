@@ -7,7 +7,7 @@ AF_DCMotor front_left(1);
 AF_DCMotor front_right(2);
 
 // Set to true to print debug messages to the serial line
-const boolean DEBUG = true;
+boolean debug = true;
 
 // Pins for the wheel encoders
 const int ENCODER_PIN_RIGHT = 9;
@@ -26,13 +26,9 @@ const int TRIG = 10;
 const int ECHO = 2;
 
 // Constants for motor speed during different behaviors
-const int SPEED_CRUISING = 30;
+const int SPEED_CRUISING = 10;
 const int SPEED_HALT = 0;
-const int SPEED_TURN = 20;
-
-// Constants for timer intervals
-const long TIMER_PING = 500L;
-const long TIMER_ENCODER = 50L;
+const int SPEED_TURN = 10;
 
 // Counters for the wheel encoders
 volatile int right_counter = 0, last_right_counter = 0;
@@ -65,8 +61,13 @@ PID right_motor_PID(&right_motor_input, &right_motor_output, &right_motor_setpoi
 double left_motor_setpoint, left_motor_input, left_motor_output;
 PID left_motor_PID(&left_motor_input, &left_motor_output, &left_motor_setpoint, 2, 5, 1, DIRECT);
 
-void setup() {
+void setup()
+{
+
   Serial.begin(9600);
+
+  // Print usage information to the Serial line
+  usage();
 
   pinMode (TRIG, OUTPUT);
   pinMode (ECHO, INPUT);
@@ -94,13 +95,14 @@ void setup() {
   left_motor_PID.SetOutputLimits(0, 1024);
 
   Timer1.initialize(50000);
-  Timer1.attachInterrupt(sendPing);
+  Timer1.attachInterrupt(timerCallback);
 
   // Setup the external interrupt to capture the ultrasonic echo
   attachInterrupt(digitalPinToInterrupt(ECHO), readEcho, CHANGE);
 }
 
-void loop() {
+void loop()
+{
 
   // Behavior state machine
   if (behavior == EXPLORE || behavior == COLLISION_AVOIDANCE) {
@@ -108,15 +110,6 @@ void loop() {
     // Set the motors to move forward
     front_left.run(FORWARD);
     front_right.run(FORWARD);
-
-    // Capture the encoder value at a defined interval
-    if (encoderTimer == 0L || (millis() - encoderTimer >= TIMER_ENCODER)) {
-      last_right_counter = right_counter;
-      last_left_counter = left_counter;
-      right_counter = 0;
-      left_counter = 0;
-      encoderTimer = millis();
-    }
 
     // Use the PID control to set the speed on the right and left motors
     // to match the setpoint
@@ -138,7 +131,7 @@ void loop() {
       left_motor_setpoint = SPEED_CRUISING;
     }
     
-    if (DEBUG) {
+    if (debug) {
       Serial.print("Echo distance: ");
       Serial.println(echo_distance);
   
@@ -165,15 +158,56 @@ void loop() {
       behavior = EXPLORE;
     }
   }
+
+  // Process serial input
+  // WARNING: may slow the main loop, so exercise restraint
+  if (Serial.available()) {
+    processSerialInput();
+  }
 }
 
-// Create the ping waveform for the ultrasonic signal
-void sendPing() {
+// Print info on commands and usage on the serial line
+void usage()
+{
+  Serial.println("Autonomous Rover");
+  Serial.println("Available commands:");
+  Serial.println("D: toggle debug messages");
+}
+
+// Process input on the serial line
+void processSerialInput()
+{
+  char cmd = Serial.read();
+
+  switch (cmd) {
+    case 'D':
+      debug = !debug;
+      Serial.println("Toggling debug mode");
+      break;
+  }
+
+  // Ignore everything till the LF
+  while (Serial.read() != 10);
+}
+
+// Create the ping waveform for the ultrasonic signal and capture the encoder
+// values on a perodic basis
+void timerCallback()
+{
+
+  // The pulse to be sent to the ultrasonic sensor
   digitalWrite(TRIG, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG, LOW);
+
+  // Capture the encoder counter values and reset the counter.
+  // This is used for PID control on the motors
+  last_right_counter = right_counter;
+  last_left_counter = left_counter;
+  right_counter = 0;
+  left_counter = 0;
 }
 
 // Read the echo from the ping signal and capture the duration
